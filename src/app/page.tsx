@@ -1,184 +1,30 @@
 'use client';
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
 
-import { AuthorForm, AuthorFormValues } from "@/components/AuthorForm";
+import { AuthorForm } from "@/components/AuthorForm";
 import { Modal } from "@/components/Modal";
-
-type Author = {
-  id: string;
-  name: string;
-  email: string;
-  bio: string | null;
-  nationality: string | null;
-  birthYear: number | null;
-  books: { id: string; title: string }[];
-  _count: { books: number };
-};
-
-const emptyForm: AuthorFormValues = {
-  name: "",
-  email: "",
-  bio: "",
-  nationality: "",
-  birthYear: "",
-};
+import { useAuthorsPage } from "@/hooks/useAuthorsPage";
 
 export default function HomePage() {
-  const [authors, setAuthors] = useState<Author[]>([]);
-  const [form, setForm] = useState<AuthorFormValues>(emptyForm);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState(" ");
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
-
-  useEffect(() => {
-    fetchAuthors();
-  }, []);
-
-  const statistics = useMemo(() => {
-    if (authors.length === 0) {
-      return {
-        totalAuthors: 0,
-        totalBooks: 0,
-        averageBooks: 0,
-        topAuthor: "-",
-      };
-    }
-
-    const totalBooks = authors.reduce((sum, author) => sum + author._count.books, 0);
-    const averageBooks = Math.round((totalBooks / authors.length) * 10) / 10;
-    const most = authors.reduce((prev, current) =>
-      current._count.books > prev._count.books ? current : prev,
-    );
-
-    return {
-      totalAuthors: authors.length,
-      totalBooks,
-      averageBooks,
-      topAuthor: `${most.name} (${most._count.books})`,
-    };
-  }, [authors]);
-
-  const filteredAuthors = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    if (!term) return authors;
-    return authors.filter((author) => {
-      return (
-        author.name.toLowerCase().includes(term) ||
-        author.email.toLowerCase().includes(term) ||
-        (author.bio ?? "").toLowerCase().includes(term) ||
-        (author.nationality ?? "").toLowerCase().includes(term)
-      );
-    });
-  }, [authors, searchTerm]);
-
-  const fetchAuthors = async () => {
-    setLoading(true);
-    setMessage(null);
-    try {
-      const response = await fetch('/api/authors');
-      if (!response.ok) {
-        throw new Error('No se pudieron cargar los autores');
-      }
-      const data: Author[] = await response.json();
-      setAuthors(data);
-    } catch (error: any) {
-      setMessage(error.message ?? 'Ocurrió un error al cargar autores');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleFieldChange = (field: keyof AuthorFormValues, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const resetForm = () => {
-    setForm(emptyForm);
-    setEditingId(null);
-  };
-
-  const openCreateModal = () => {
-    resetForm();
-    setModalMode('create');
-    setModalOpen(true);
-  };
-
-  const openEditModal = (author: Author) => {
-    setForm({
-      name: author.name,
-      email: author.email,
-      bio: author.bio ?? '',
-      nationality: author.nationality ?? '',
-      birthYear: author.birthYear ? String(author.birthYear) : '',
-    });
-    setEditingId(author.id);
-    setModalMode('edit');
-    setModalOpen(true);
-  };
-
-  const closeModal = () => {
-    setModalOpen(false);
-    setSaving(false);
-    resetForm();
-  };
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setSaving(true);
-    setMessage(null);
-
-    const payload = {
-      name: form.name.trim(),
-      email: form.email.trim(),
-      bio: form.bio.trim() || null,
-      nationality: form.nationality.trim() || null,
-      birthYear: form.birthYear ? Number(form.birthYear) : null,
-    };
-
-    const isEdit = Boolean(editingId);
-
-    try {
-      const url = isEdit ? `/api/authors/${editingId}` : '/api/authors';
-      const method = isEdit ? 'PUT' : 'POST';
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!response.ok) {
-        const body = await response.json().catch(() => null);
-        throw new Error(body?.error ?? 'No se pudo guardar');
-      }
-      await fetchAuthors();
-      setMessage(isEdit ? 'Autor actualizado correctamente' : 'Autor creado correctamente');
-      closeModal();
-    } catch (error: any) {
-      setMessage(error.message ?? 'Ocurrió un error al guardar');
-      setSaving(false);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('¿Eliminar este autor?')) return;
-    setMessage(null);
-    try {
-      const response = await fetch(`/api/authors/${id}`, { method: 'DELETE' });
-      if (!response.ok) {
-        const body = await response.json().catch(() => null);
-        throw new Error(body?.error ?? 'No se pudo eliminar');
-      }
-      await fetchAuthors();
-      setMessage('Autor eliminado');
-    } catch (error: any) {
-      setMessage(error.message ?? 'Ocurrió un error al eliminar');
-    }
-  };
+  const {
+    filteredAuthors,
+    statistics,
+    loading,
+    saving,
+    message,
+    form,
+    searchTerm,
+    modalOpen,
+    modalMode,
+    openCreateModal,
+    openEditModal,
+    closeModal,
+    handleFieldChange,
+    handleSubmit,
+    handleDelete,
+    setSearchTerm,
+  } = useAuthorsPage();
 
   return (
     <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-8 bg-slate-50 px-4 py-10 sm:px-8">
@@ -244,7 +90,7 @@ export default function HomePage() {
         </div>
         {filteredAuthors.length === 0 ? (
           <p className="text-sm text-slate-600">
-            {loading ? 'Cargando autores...' : 'No se encontraron autores con esa búsqueda'}
+            {loading ? "Cargando autores..." : "No se encontraron autores con esa búsqueda"}
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -301,12 +147,12 @@ export default function HomePage() {
       <Modal
         open={modalOpen}
         onClose={closeModal}
-        title={modalMode === 'create' ? 'Registrar autor' : 'Editar autor'}
+        title={modalMode === "create" ? "Registrar autor" : "Editar autor"}
       >
         <AuthorForm
           values={form}
           submitting={saving}
-          submitLabel={modalMode === 'create' ? 'Crear autor' : 'Actualizar autor'}
+          submitLabel={modalMode === "create" ? "Crear autor" : "Actualizar autor"}
           onChange={handleFieldChange}
           onSubmit={handleSubmit}
           onCancel={closeModal}
